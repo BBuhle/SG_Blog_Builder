@@ -1,9 +1,4 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="robots" content="noindex, nofollow">
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Sawgrass Blog Builder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,6 +40,7 @@ button{cursor:pointer}
 .drafts li.cur{border-color:var(--accent)}
 .drafts .dn{font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1 1 160px}
 .drafts .dm{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.drafts .sec{border:0;padding:8px 2px 0;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 .drafts .empty{color:var(--muted);border-style:dashed;justify-content:center}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--panel);padding:10px 16px;border-radius:8px;font-weight:600;font-size:13px;z-index:30;box-shadow:0 4px 16px rgba(0,0,0,.2)}
 .btn{border:1px solid var(--line);background:var(--panel);padding:8px 14px;border-radius:6px;font-weight:600}
@@ -79,7 +75,7 @@ button{cursor:pointer}
 @media (max-width:480px){.fields{padding-left:12px}}
 .field{display:grid;gap:4px;min-width:0}
 .field>label,.lbl{font-size:12px;font-weight:600;color:var(--muted)}
-.field input[type=text],.field input[type=url],.field textarea,.field select{width:100%;border:1px solid var(--line);background:var(--sunk);border-radius:6px;padding:8px 10px}
+.field input[type=text],.field input[type=url],#meName,.field textarea,.field select{width:100%;border:1px solid var(--line);background:var(--sunk);border-radius:6px;padding:8px 10px}
 .field textarea{min-height:84px;resize:vertical}
 .field textarea.mono{font-family:var(--f-mono);font-size:12.5px;min-height:120px;white-space:pre;overflow:auto}
 .range{display:flex;gap:10px;align-items:center}
@@ -145,16 +141,13 @@ details.sty[open] summary{margin-bottom:10px}
 .sheet-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .sheet-foot p{margin:0 auto 0 0;color:var(--muted);font-size:12.5px;max-width:62ch}
 </style>
-<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
-</head>
-<body>
-
 
 <header class="bar">
   <div class="brand"><b>Blog Builder</b><span>Sawgrass · v3</span></div>
   <input id="postName" class="name" type="text" aria-label="Post name" placeholder="Name this post">
   <span id="saved" class="saved"></span>
   <span id="status" class="status">Checking…</span>
+  <button id="authBtn" class="btn" hidden>Sign in for team drafts</button>
   <button id="draftsBtn" class="btn">Drafts</button>
   <button id="saveBtn" class="btn">Save draft</button>
   <button id="clearBtn" class="btn">New post</button>
@@ -197,9 +190,10 @@ details.sty[open] summary{margin-bottom:10px}
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="dTitle">
     <div class="ph"><h2 id="dTitle">Drafts</h2><button id="dClose" class="btn small" style="margin-left:auto">Close</button></div>
     <div class="sheet-body">
+      <div id="meWrap" class="field" hidden style="max-width:320px"><label for="meName">Your name (shows on drafts you save)</label><input id="meName" type="text" placeholder="e.g. Brett"></div>
       <ul id="draftList" class="drafts"></ul>
       <div class="sheet-foot">
-        <p>Drafts are saved in this browser. To hand one to Rachel or the copy editor, download the draft file and send it; they open it here with Open draft file. The file keeps your preview images too.</p>
+        <p id="dNote"></p>
         <label class="btn" for="draftFile" style="cursor:pointer">Open draft file</label>
         <input id="draftFile" type="file" accept=".json,application/json" hidden>
         <button id="dlBtn" class="btn primary">Download draft file</button>
@@ -654,6 +648,23 @@ function exportHTML(){
 }
 
 /* ---------- state ---------- */
+/* ===== Team drafts (Firebase) =====
+   To share drafts across the team, paste your Firebase web app config here
+   (Firebase console > Project settings > Your apps > SDK setup > Config).
+   Leave it as null and drafts save in each person's browser only. */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBQfyuHMOQcoCGJlwuXw96-PdzMV9o6cuc",
+  authDomain: "blog-builder-56a95.firebaseapp.com",
+  projectId: "blog-builder-56a95",
+  storageBucket: "blog-builder-56a95.firebasestorage.app",
+  messagingSenderId: "268138243678",
+  appId: "1:268138243678:web:53e1196ea5245a6162f6cf"
+};
+/* false = anyone with the builder link can open and save team drafts (no sign-in).
+   true  = require Google sign-in on the domain below (also tighten the Firestore rules). */
+const REQUIRE_SIGN_IN = false;
+const ALLOWED_EMAIL_DOMAIN = 'sawgrassink.com';
+
 const KEY='sgb-draft-v2', DKEY='sgb-drafts-v1';
 let blocks=[], open=null, postName='', draftId=null, dirty=false, savedAt=null; const openStyle=new Set();
 function mk(type,preset,data,style){
@@ -689,39 +700,111 @@ function seed(){
 }
 const strip=(k,v)=>(k==='local'||k==='size'||k==='gif')?undefined:v;
 const valid=a=>Array.isArray(a)&&a.length&&a.every(b=>b&&M[b.type]&&b.data);
-function save(){ try{ localStorage.setItem(KEY,JSON.stringify({name:postName,draftId,blocks},strip)); }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify({name:postName,draftId,draftStore,blocks},strip)); }catch(e){} }
 function load(){ try{ const s=JSON.parse(localStorage.getItem(KEY)||'null');
   if(Array.isArray(s)&&valid(s)) return s;
-  if(s&&valid(s.blocks)){ postName=s.name||''; draftId=s.draftId||null; return s.blocks; } }catch(e){} return null; }
+  if(s&&valid(s.blocks)){ postName=s.name||''; draftId=s.draftId||null; draftStore=s.draftStore||'local'; return s.blocks; } }catch(e){} return null; }
 function getDrafts(){ try{ return JSON.parse(localStorage.getItem(DKEY)||'{}')||{}; }catch(e){ return {}; } }
 function putDrafts(d){ try{ localStorage.setItem(DKEY,JSON.stringify(d,strip)); return true; }catch(e){ return false; } }
 const fmtTime=t=>{ const d=new Date(t), now=new Date(); const tm=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
   return d.toDateString()===now.toDateString()?'Today '+tm:d.toLocaleDateString([], {month:'short',day:'numeric'})+' · '+tm; };
 let toastT=0; function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>{t.hidden=true;},2600); }
-function renderSaved(){ const el=$('#saved'); if(dirty&&draftId){el.textContent='Unsaved changes';el.className='saved dirty';}
-  else if(savedAt){el.textContent='Saved '+fmtTime(savedAt);el.className='saved';} else {el.textContent=draftId?'':'Not saved as a draft yet';el.className='saved';} }
-function saveDraft(){
-  const d=getDrafts(); if(!draftId) draftId='d'+Date.now().toString(36);
+/* ---------- draft stores: this browser, or the team (Firebase) ---------- */
+const LocalStore={kind:'local',
+  async list(){ const d=getDrafts(); return Object.keys(d).map(id=>({id,name:d[id].name,savedAt:d[id].savedAt,count:(d[id].blocks||[]).length})); },
+  async get(id){ const d=getDrafts()[id]; return d?{id,name:d.name,savedAt:d.savedAt,blocks:d.blocks}:null; },
+  async put(id,doc){ const d=getDrafts(); d[id]=doc; if(!putDrafts(d)) throw new Error('storage'); },
+  async del(id){ const d=getDrafts(); delete d[id]; putDrafts(d); }};
+let user=null, db=null, cloudOn=false, draftStore='local';
+const lsGet=k=>{try{return localStorage.getItem(k)||''}catch(e){return ''}}, lsSet=(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}};
+let myName=lsGet('sgb-me'); let clientId=lsGet('sgb-client'); if(!clientId){ clientId='c'+Math.random().toString(36).slice(2,10); lsSet('sgb-client',clientId); }
+const me=()=>user?{name:user.displayName||user.email,id:user.email}:{name:myName||'Someone',id:clientId};
+const teamReady=()=>cloudOn&&(user||!REQUIRE_SIGN_IN);
+const COLL='blogDrafts';
+const CloudStore={kind:'cloud',
+  async list(){ const q=await db.collection(COLL).orderBy('savedAt','desc').limit(200).get();
+    return q.docs.map(x=>{const v=x.data();return {id:x.id,name:v.name,savedAt:v.savedAt,count:v.count,by:v.byName,byId:v.byId};}); },
+  async get(id){ const x=await db.collection(COLL).doc(id).get(); if(!x.exists) return null; const v=x.data();
+    return {id,name:v.name,savedAt:v.savedAt,by:v.byName,byId:v.byId,blocks:JSON.parse(v.blocks||'[]')}; },
+  async put(id,doc){ await db.collection(COLL).doc(id).set({name:doc.name,savedAt:doc.savedAt,blocks:JSON.stringify(doc.blocks,strip),count:doc.blocks.length,byName:me().name,byId:me().id}); },
+  async del(id){ await db.collection(COLL).doc(id).delete(); }};
+const activeStore=()=>teamReady()?CloudStore:LocalStore;
+const storeOf=k=>k==='cloud'?CloudStore:LocalStore;
+
+function renderSaved(){ const el=$('#saved'), where=draftStore==='cloud'?'to team ':'';
+  if(dirty&&draftId){el.textContent='Unsaved changes';el.className='saved dirty';}
+  else if(savedAt){el.textContent='Saved '+where+fmtTime(savedAt);el.className='saved';}
+  else {el.textContent=draftId?'':'Not saved as a draft yet';el.className='saved';} }
+const saveBtn=$('#saveBtn');
+function disarmSave(){ delete saveBtn.dataset.armed; saveBtn.textContent='Save draft'; saveBtn.style.color=''; }
+async function saveDraft(force){
+  if(cloudOn&&REQUIRE_SIGN_IN&&!user){ toast('Sign in with Google to save shared drafts. Saving in this browser for now.'); }
+  const S=activeStore();
+  if(!draftId) draftId='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
   const name=postName.trim()||(blocks.find(b=>b.type==='title')||{data:{}}).data.headline||'Untitled post';
   if(!postName.trim()){ postName=name; $('#postName').value=name; }
-  d[draftId]={name,savedAt:Date.now(),blocks:clone(blocks)};
-  if(putDrafts(d)){ dirty=false; savedAt=d[draftId].savedAt; save(); renderSaved(); toast('Draft saved in this browser'); }
-  else toast('Couldn\'t save. This browser is blocking storage or is full.');
+  if(S.kind==='cloud'&&!force){
+    try{ const cur=await S.get(draftId);
+      if(cur&&cur.byId!==me().id&&(!savedAt||cur.savedAt>savedAt)){
+        saveBtn.dataset.armed=1; saveBtn.textContent=`Overwrite ${String(cur.by||'their').split(' ')[0]}'s newer save?`; saveBtn.style.color='var(--warn)';
+        setTimeout(disarmSave,6000); return; }
+    }catch(e){}
+  }
+  disarmSave();
+  const doc={name,savedAt:Date.now(),blocks:clone(blocks)};
+  try{ await S.put(draftId,doc); draftStore=S.kind; dirty=false; savedAt=doc.savedAt; save(); renderSaved();
+    toast(S.kind==='cloud'?'Draft saved for the team':'Draft saved in this browser'); }
+  catch(e){ toast(S.kind==='cloud'?'Couldn\'t reach the team drafts. Check your connection and try again.':'Couldn\'t save. This browser is blocking storage or is full.'); }
 }
-function loadDraft(id){
-  const d=getDrafts()[id]; if(!d||!valid(d.blocks)) { toast('That draft could not be opened'); return; }
-  blocks=clone(d.blocks); postName=d.name||''; draftId=id; savedAt=d.savedAt; dirty=false; open=null;
-  $('#postName').value=postName; save(); renderAll(); renderSaved();
+async function loadDraft(id,kind){
+  let d=null; try{ d=await storeOf(kind).get(id); }catch(e){}
+  if(!d||!valid(d.blocks)){ toast('That draft could not be opened'); return false; }
+  blocks=clone(d.blocks); postName=d.name||''; draftId=id; draftStore=kind; savedAt=d.savedAt; dirty=false; open=null;
+  $('#postName').value=postName; save(); renderAll(); renderSaved(); toast('Opened '+postName); return true;
 }
-function renderDrafts(){
-  const d=getDrafts(), ids=Object.keys(d).sort((a,b)=>d[b].savedAt-d[a].savedAt), ul=$('#draftList');
-  ul.innerHTML=ids.length?ids.map(id=>`<li class="${id===draftId?'cur':''}"><span class="dn">${esc(d[id].name)}</span><span class="dm">${fmtTime(d[id].savedAt)} · ${(d[id].blocks||[]).length} modules</span>
-    <button class="btn small" data-open="${id}">${id===draftId?'Reopen saved version':'Open'}</button><button class="btn small" data-del="${id}">Delete</button></li>`).join('')
-    :'<li class="empty">No saved drafts yet. Use Save draft in the top bar.</li>';
-  ul.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',()=>{ loadDraft(b.dataset.open); $('#dmodal').hidden=true; toast('Opened '+(getDrafts()[b.dataset.open]||{}).name); }));
-  ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+async function renderDrafts(){
+  const ul=$('#draftList');
+  $('#meWrap').hidden=!(teamReady()&&!user);
+  $('#dNote').textContent=teamReady()
+    ?(user?`Team drafts are shared with everyone signed in with an @${ALLOWED_EMAIL_DOMAIN} Google account.`:'Team drafts are shared with anyone who has the builder link.')+' Download a draft file for a backup or to send it outside the team.'
+    :(cloudOn&&REQUIRE_SIGN_IN?'Sign in with Google (top bar) to see and save team drafts. Until then, drafts save in this browser only.'
+      :'Drafts are saved in this browser. To hand one to Rachel or the copy editor, download the draft file and send it; they open it here with Open draft file. The file keeps your preview images too.');
+  ul.innerHTML='<li class="empty">Loading drafts…</li>';
+  const sections=[];
+  if(teamReady()){ try{ sections.push(['cloud','Team drafts',await CloudStore.list()]); }catch(e){ sections.push(['cloud','Team drafts',null]); } }
+  const loc=await LocalStore.list(); if(!teamReady()||loc.length) sections.push(['local',teamReady()?'Only in this browser':'',loc]);
+  ul.innerHTML=sections.map(([k,label,items])=>(label?`<li class="sec">${label}</li>`:'')+(items===null?'<li class="empty">Couldn\'t load team drafts. Check your connection.</li>'
+    :items.length?items.sort((a,b)=>b.savedAt-a.savedAt).map(it=>`<li class="${it.id===draftId&&k===draftStore?'cur':''}"><span class="dn">${esc(it.name)}</span><span class="dm">${fmtTime(it.savedAt)}${it.by?' · '+esc(String(it.by).split(' ')[0]):''} · ${it.count||0} modules</span>
+      <button class="btn small" data-open="${it.id}" data-k="${k}">${it.id===draftId&&k===draftStore?'Reopen saved version':'Open'}</button><button class="btn small" data-del="${it.id}" data-k="${k}">Delete</button></li>`).join('')
+    :`<li class="empty">${k==='cloud'?'No team drafts yet. Use Save draft in the top bar.':'No saved drafts yet. Use Save draft in the top bar.'}</li>`)).join('');
+  ul.querySelectorAll('[data-open]').forEach(b=>b.addEventListener('click',async()=>{ if(await loadDraft(b.dataset.open,b.dataset.k)) $('#dmodal').hidden=true; }));
+  ul.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',async()=>{
     if(!b.dataset.armed){ b.dataset.armed=1; b.textContent='Delete for good?'; b.style.color='var(--warn)'; return; }
-    const all=getDrafts(); delete all[b.dataset.del]; putDrafts(all); if(draftId===b.dataset.del){draftId=null;savedAt=null;save();renderSaved();} renderDrafts(); }));
+    try{ await storeOf(b.dataset.k).del(b.dataset.del); }catch(e){ toast('Couldn\'t delete that draft'); return; }
+    if(draftId===b.dataset.del&&draftStore===b.dataset.k){draftId=null;savedAt=null;save();renderSaved();}
+    renderDrafts(); }));
+}
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
+function renderAuth(){ const b=$('#authBtn'); b.hidden=!(cloudOn&&REQUIRE_SIGN_IN); b.textContent=user?'Sign out '+String(user.displayName||user.email).split(' ')[0]:'Sign in for team drafts'; }
+async function initCloud(){
+  if(!FIREBASE_CONFIG) return;
+  const base='https://www.gstatic.com/firebasejs/10.14.1/';
+  try{ for(const f of ['firebase-app-compat.js'].concat(REQUIRE_SIGN_IN?['firebase-auth-compat.js']:[],['firebase-firestore-compat.js'])) await loadScript(base+f);
+    firebase.initializeApp(FIREBASE_CONFIG); db=firebase.firestore(); }
+  catch(e){ toast('Team drafts are unavailable here, so drafts will save in this browser.'); return; }
+  cloudOn=true;
+  if(!REQUIRE_SIGN_IN){ renderSaved(); return; }
+  renderAuth();
+  firebase.auth().onAuthStateChanged(u=>{
+    if(u&&ALLOWED_EMAIL_DOMAIN&&!String(u.email||'').toLowerCase().endsWith('@'+ALLOWED_EMAIL_DOMAIN.toLowerCase())){
+      firebase.auth().signOut(); toast('Sign in with your @'+ALLOWED_EMAIL_DOMAIN+' Google account'); return; }
+    user=u||null; renderAuth(); renderSaved();
+  });
+  $('#authBtn').addEventListener('click',()=>{
+    if(user){ firebase.auth().signOut(); return; }
+    const p=new firebase.auth.GoogleAuthProvider(); if(ALLOWED_EMAIL_DOMAIN) p.setCustomParameters({hd:ALLOWED_EMAIL_DOMAIN});
+    firebase.auth().signInWithPopup(p).catch(e=>{ if(e&&e.code!=='auth/popup-closed-by-user') toast('Sign-in didn\'t finish: '+(e.code||'try again')); });
+  });
 }
 function toDataURL(src){ return fetch(src).then(r=>r.blob()).then(bl=>new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=rej;fr.readAsDataURL(bl);})); }
 async function downloadDraft(){
@@ -954,15 +1037,15 @@ const clr=$('#clearBtn');
 clr.addEventListener('click',()=>{
   if(!clr.dataset.armed){ clr.dataset.armed=1; clr.textContent='Clear everything?'; setTimeout(()=>{delete clr.dataset.armed; clr.textContent='New post';},3000); return; }
   delete clr.dataset.armed; clr.textContent='New post';
-  blocks=[mk('title')]; open=blocks[0].id; postName=''; draftId=null; savedAt=null; dirty=false; $('#postName').value=''; save(); renderAll(); renderSaved();
+  blocks=[mk('title')]; open=blocks[0].id; postName=''; draftId=null; draftStore='local'; savedAt=null; dirty=false; $('#postName').value=''; save(); renderAll(); renderSaved();
 });
 
 blocks=load()||seed();
-if(draftId){ const d=getDrafts()[draftId]; if(d){ savedAt=d.savedAt; dirty=JSON.stringify(d.blocks,strip)!==JSON.stringify(blocks,strip); } else draftId=null; }
+if(draftId&&draftStore==='local'){ const d=getDrafts()[draftId]; if(d){ savedAt=d.savedAt; dirty=JSON.stringify(d.blocks,strip)!==JSON.stringify(blocks,strip); } else draftId=null; }
 $('#postName').value=postName;
 $('#postName').addEventListener('input',e=>{ postName=e.target.value; dirty=true; save(); renderSaved(); });
-$('#saveBtn').addEventListener('click',saveDraft);
-document.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); saveDraft(); } });
+saveBtn.addEventListener('click',()=>saveDraft(!!saveBtn.dataset.armed));
+document.addEventListener('keydown',e=>{ if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){ e.preventDefault(); saveDraft(false); } });
 const dm=$('#dmodal');
 $('#draftsBtn').addEventListener('click',()=>{ renderDrafts(); dm.hidden=false; $('#dClose').focus(); });
 $('#dClose').addEventListener('click',()=>{ dm.hidden=true; });
@@ -970,9 +1053,9 @@ dm.addEventListener('click',e=>{ if(e.target===dm) dm.hidden=true; });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') dm.hidden=true; });
 $('#dlBtn').addEventListener('click',()=>{ downloadDraft().catch(()=>toast('Download didn\'t start. Try again.')); });
 $('#draftFile').addEventListener('change',e=>{ const f=e.target.files[0]; if(f) openDraftFile(f); e.target.value=''; });
-renderLib(); renderAll(); renderSaved();
+$('#meName').value=myName; $('#meName').addEventListener('input',e=>{ myName=e.target.value.trim(); lsSet('sgb-me',myName); });
+renderLib(); renderAll(); renderSaved(); initCloud();
 })();
 </script>
 
-</body>
-</html>
+</body></html>
